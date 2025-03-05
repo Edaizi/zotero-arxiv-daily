@@ -154,13 +154,15 @@ class ArxivPaper:
             match = re.search(r'\\section\{Conclusion\}.*?(\\section|\\end\{document\}|\\bibliography|\\appendix|$)', content, flags=re.DOTALL)
             if match:
                 conclusion = match.group(0)
-        prompt = """Given the title, abstract, introduction and the conclusion (if any) of a paper in latex format, generate a one-sentence TLDR summary:
+        llm = get_llm()
+        prompt = """Given the title, abstract, introduction and the conclusion (if any) of a paper in latex format, generate a one-sentence TLDR summary in __LANG__:
         
         \\title{__TITLE__}
         \\begin{abstract}__ABSTRACT__\\end{abstract}
         __INTRODUCTION__
         __CONCLUSION__
         """
+        prompt = prompt.replace('__LANG__', llm.lang)
         prompt = prompt.replace('__TITLE__', self.title)
         prompt = prompt.replace('__ABSTRACT__', self.summary)
         prompt = prompt.replace('__INTRODUCTION__', introduction)
@@ -171,7 +173,7 @@ class ArxivPaper:
         prompt_tokens = enc.encode(prompt)
         prompt_tokens = prompt_tokens[:4000]  # truncate to 4000 tokens
         prompt = enc.decode(prompt_tokens)
-        llm = get_llm()
+        
         tldr = llm.generate(
             messages=[
                 {
@@ -190,7 +192,9 @@ class ArxivPaper:
             if content is None:
                 content = "\n".join(self.tex.values())
             #search for affiliations
-            match = re.search(r'\\author.*?\\maketitle', content, flags=re.DOTALL)
+            possible_regions = [r'\\author.*?\\maketitle',r'\\begin{document}.*?\\begin{abstract}']
+            matches = [re.search(p, content, flags=re.DOTALL) for p in possible_regions]
+            match = next((m for m in matches if m), None)
             if match:
                 information_region = match.group(0)
             else:
